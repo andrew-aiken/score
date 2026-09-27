@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerates the test self-signed TLS cert/key shared by Caddy and NATS
+# Regenerates the test self-signed TLS certificate & key for Caddy
 
 set -euo pipefail
 cd "$(dirname "$0")"

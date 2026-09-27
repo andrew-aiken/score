@@ -12,8 +12,7 @@ caddy/certs/*.crt
 # goreleaser
 dist/
 
-# Helm dependency archives - Chart.lock pins versions, regenerate with
-# `helm dependency build` rather than committing the downloaded .tgz
+# Helm dependency archives
 example/kubernetes/score/charts/*.tgz
 
 # Copy of template file
