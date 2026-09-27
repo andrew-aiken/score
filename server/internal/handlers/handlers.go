@@ -21,6 +21,7 @@ type Handler struct {
 	NatsKVClient      natsnats.KeyValue
 	NatsUsersKVClient natsnats.KeyValue
 	CronScheduler     gocron.Scheduler
+	NatsPublicURL     string
 }
 
 // Verify validates a NATS JWT token from the Authorization header
@@ -49,6 +50,12 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encodeJson(w, map[string]bool{"valid": true})
+}
+
+// Config returns public, unauthenticated runtime configuration for the frontend
+func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	encodeJson(w, map[string]string{"natsUrl": h.NatsPublicURL})
 }
 
 // GetMutableFields returns a map of check names to their mutable fields from the NATS KV settings bucket

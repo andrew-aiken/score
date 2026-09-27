@@ -32,6 +32,9 @@ func SetupRoutes(serverConfig *handlers.Handler, authMiddleware middleware.AuthM
 	mux.HandleFunc("/auth/verify", handlers.RequireMethod(http.MethodGet, serverConfig.Verify))
 	mux.HandleFunc("/auth/login", handlers.RequireMethod(http.MethodPost, serverConfig.Login))
 
+	// Public - returns the NATS websocket address for the frontend
+	mux.HandleFunc("/api/config", handlers.RequireMethod(http.MethodGet, serverConfig.Config))
+
 	mux.HandleFunc("/api/checks/mutable-fields", authMiddleware.RequireAuth(handlers.RequireMethod(http.MethodGet, serverConfig.GetMutableFields)))
 	mux.HandleFunc("/api/checks", authMiddleware.RequireAuth(handlers.RequireMethod(http.MethodGet, serverConfig.Checks)))
 	mux.HandleFunc("/api/settings", authMiddleware.RequireAuth(serverConfig.TeamSettings))

@@ -1,12 +1,5 @@
-const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-
 // Base URL for /api and /auth calls. The Go server serves the frontend, /api,
 // and /auth from the same origin, so this defaults to the page's own origin.
 // Override with VITE_API_BASE_URL (e.g. in .env.local) to point at a
 // different backend during local development.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? window.location.origin
-
-// NATS runs as a separate websocket service on the same host as the page.
-// Override with VITE_NATS_URL to point at a different NATS instance.
-export const NATS_URL =
-  import.meta.env.VITE_NATS_URL ?? `${wsProtocol}//${window.location.hostname}:8080`

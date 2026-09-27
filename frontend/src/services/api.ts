@@ -2,6 +2,26 @@ import { getCredentials } from './auth'
 import { API_BASE_URL } from '../config'
 
 /**
+ * Fetch public runtime configuration from the server.
+ * When the server wasn't started witha public NATS URL, falls back to default.
+ */
+export async function getConfig(): Promise<{ natsUrl: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/config`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to fetch config' }))
+    throw new Error(error.error || 'Failed to fetch config')
+  }
+
+  return response.json()
+}
+
+/**
  * Fetch all configured check names from the server (NATS KV `check.*` keys).
  * GET /api/checks — public; sends Authorization when credentials exist.
  */
