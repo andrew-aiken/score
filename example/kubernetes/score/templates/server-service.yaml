@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "score.fullname" . }}-server
+  labels:
+    {{- include "score.labels" . | nindent 4 }}
+    {{- include "score.selectorLabels" (dict "component" "server" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  type: {{ .Values.server.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.server.service.port }}
+      targetPort: http
+  selector:
+    {{- include "score.selectorLabels" (dict "component" "server" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
