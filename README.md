@@ -5,9 +5,9 @@
 ### Features:
 
 - Distributed agent design
-- minimalist design
-  - Scoring, not injects
-  - Wide variety of configuratble [checks](https://github.com/andrew-aiken/checks)
+- Minimalist design
+  - Built for scoring, not injects
+  - Wide variety of configurable [checks](https://github.com/andrew-aiken/checks)
 - [Documentation](https://github.com/andrew-aiken/score/wiki) & tests
 
 ## Quick Start

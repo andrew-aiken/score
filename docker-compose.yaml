@@ -7,7 +7,6 @@ services:
     volumes:
       - ./nsc/nats.conf:/etc/nats/server.conf:ro
       - ./nsc/score/score.jwt:/etc/nats/operator.jwt:ro
-      - ./caddy/certs:/etc/nats/certs:ro
     command: ["-c", "/etc/nats/server.conf"]
     networks:
       - internal
