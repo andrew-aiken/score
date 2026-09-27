@@ -1,0 +1,60 @@
+{{- $root := . }}
+{{- range .Values.agents }}
+{{- $agent := . }}
+{{- $credsSecret := $agent.credsSecretName | default (include "score.agentCredsSecretName" $root) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "score.fullname" $root }}-agent-{{ $agent.name }}
+  labels:
+    {{- include "score.labels" $root | nindent 4 }}
+    app.kubernetes.io/name: {{ include "score.name" $root }}
+    app.kubernetes.io/instance: {{ $root.Release.Name }}
+    app.kubernetes.io/component: agent
+    score.io/agent-pool: {{ $agent.name }}
+spec:
+  replicas: {{ $agent.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "score.name" $root }}
+      app.kubernetes.io/instance: {{ $root.Release.Name }}
+      app.kubernetes.io/component: agent
+      score.io/agent-pool: {{ $agent.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "score.labels" $root | nindent 8 }}
+        app.kubernetes.io/name: {{ include "score.name" $root }}
+        app.kubernetes.io/instance: {{ $root.Release.Name }}
+        app.kubernetes.io/component: agent
+        score.io/agent-pool: {{ $agent.name }}
+    spec:
+      containers:
+        - name: agent
+          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag | default $root.Chart.AppVersion }}"
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          command: ["/score"]
+          args:
+            - agent
+            - --teams
+            - {{ $agent.teams | quote }}
+            - --log-level
+            - {{ $agent.logLevel | quote }}
+          env:
+            - name: NATS_ADDRESS
+              value: {{ include "score.natsAddress" $root | quote }}
+            - name: NATS_CREDS
+              value: /agent.creds
+          resources:
+            {{- toYaml $agent.resources | nindent 12 }}
+          volumeMounts:
+            - name: agent-creds
+              mountPath: /agent.creds
+              subPath: agent.creds
+              readOnly: true
+      volumes:
+        - name: agent-creds
+          secret:
+            secretName: {{ $credsSecret }}
+{{- end }}

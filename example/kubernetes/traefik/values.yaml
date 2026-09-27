@@ -1,0 +1,30 @@
+providers:
+  kubernetesIngress:
+    enabled: true
+  kubernetesCRD:
+    ingressClass: traefik
+    allowCrossNamespace: true
+ingressRoute:
+  dashboard:
+    enabled: false
+deployment:
+  minReadySeconds: 15
+ports:
+  web:
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+    hostPort: 80
+  websecure:
+    hostPort: 443
+  nats:
+    expose:
+      default: true
+    exposedPort: 4222
+    hostPort: 4222
+    port: 4222
+    protocol: TCP
+service:
+  type: ClusterIP

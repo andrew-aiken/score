@@ -1,0 +1,33 @@
+{{- if .Values.natsWebsocketIngress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "score.fullname" . }}-nats-ws
+  labels:
+    {{- include "score.labels" . | nindent 4 }}
+  {{- with .Values.natsWebsocketIngress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.natsWebsocketIngress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.natsWebsocketIngress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.natsWebsocketIngress.host }}
+      secretName: {{ .Values.natsWebsocketIngress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.natsWebsocketIngress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-nats
+                port:
+                  number: {{ .Values.nats.config.websocket.port }}
+{{- end }}

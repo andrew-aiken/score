@@ -1,0 +1,15 @@
+NATS and Scoring server & agent has been installed (release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}")
+
+BEFORE THIS CHART CAN WORK, it needs NATS operator/account JWT material that this chart does not generate.
+See instructions: https://github.com/andrew-aiken/score/wiki/Kubernetes
+
+{{- if .Values.server.ingress.enabled }}
+
+The web UI is exposed via Ingress at:
+  http{{ if .Values.server.ingress.tls.enabled }}s{{ end }}://{{ .Values.server.ingress.host }}
+{{- else }}
+
+The web UI is only reachable inside the cluster via the Service
+{{ include "score.fullname" . }}-server:{{ .Values.server.service.port }}.
+Enable `server.ingress` or `port-forward` to reach it from outside the cluster.
+{{- end }}

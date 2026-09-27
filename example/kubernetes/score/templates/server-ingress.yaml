@@ -1,0 +1,34 @@
+{{- if .Values.server.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "score.fullname" . }}-server
+  labels:
+    {{- include "score.labels" . | nindent 4 }}
+    {{- include "score.selectorLabels" (dict "component" "server" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+  {{- with .Values.server.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.server.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.server.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.server.ingress.host }}
+      secretName: {{ .Values.server.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.server.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "score.fullname" . }}-server
+                port:
+                  number: {{ .Values.server.service.port }}
+{{- end }}

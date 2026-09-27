@@ -1,0 +1,11 @@
+apiVersion: v2
+name: score
+description: All in one helm chart for deploying NATS with Scoring server & agent
+type: application
+version: 0.2.0
+appVersion: "latest"
+dependencies:
+  - name: nats
+    version: "2.15.0"
+    repository: https://nats-io.github.io/k8s/helm/charts/
+    condition: nats.enabled

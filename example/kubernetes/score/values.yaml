@@ -1,0 +1,171 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  labels: {}
+
+image:
+  repository: ghcr.io/andrew-aiken/score
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Defaults to "nats://<release-name>-nats:4222"
+natsAddress: ""
+
+# Public-facing NATS websocket URL defined on the server
+#
+# Defaults to blank
+#
+# If ingress is enabled
+# wss://{{ .Values.natsWebsocketIngress.host }}
+natsPublicUrl: ""
+
+server:
+  logLevel: info
+  port: 3000
+
+  db:
+    enabled: true
+    path: /data/results.db
+
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: ""
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+  podSecurityContext:
+    fsGroup: 65532
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: score.example.com
+    tls:
+      enabled: false
+      secretName: score-server-tls
+
+# One Deployment is rendered per entry
+# Multiple team-range worker (each with its own scoped creds) can run independently.
+# Defaults to a single pool matching '0-9' teams
+agents:
+  - name: default
+    teams: "0-9"
+    logLevel: info
+    replicas: 1
+    # Falls back to agentCreds.secretName/existingSecret
+    credsSecretName: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+
+# Bootstrap material pre-generated OUTSIDE this chart via the project's manual `nsc` bootstrap is required
+# For each block below, either:
+#   - Set create=true and content=<value> (or pass at install time with `--set-file serverCreds.content=./nsc/creds/score/score/server.creds`)
+#   - Leave create=false and set existingSecret to the name of a Secret you already created yourself with `kubectl create secret generic
+
+# NATS user creds (JWT+seed) for the "server" NATS user
+serverCreds:
+  create: false
+  secretName: score-server-creds
+  existingSecret: ""
+  content: ""
+
+# NATS user creds for agent workers
+agentCreds:
+  create: false
+  secretName: score-agent-creds
+  existingSecret: ""
+  content: ""
+
+# config.json: {account_signing_seed, account_public_key}
+config:
+  create: false
+  secretName: score-config
+  existingSecret: ""
+  content: ""
+
+# Operator JWT (nsc's score.jwt), mounted into the NATS server pod
+operatorJwt:
+  create: false
+  content: ""
+
+# Values passed through to the official NATS chart (nats-io/k8s)
+# See values-nats-secrets.yaml.example for the system_account/resolver_preload block you need to fill in with real values
+nats:
+  enabled: true
+  natsBox:
+    enabled: false
+  config:
+    nats:
+      port: 4222
+    jetstream:
+      enabled: true
+      fileStore:
+        pvc:
+          enabled: true
+          size: 5Gi
+          storageClassName:
+      memoryStore:
+        enabled: true
+        maxSize: 256Mi
+
+    websocket:
+      enabled: true
+      port: 8080
+
+    # Commented keys are expected in the value override
+    merge:
+      operator: /etc/nats/operator.jwt
+      # system_account: "REPLACE_WITH_SYS_ACCOUNT_PUBLIC_KEY"
+      resolver:
+        type: cache
+        dir: "./jwt"
+        ttl: "1h"
+        timeout: "1.9s"
+      resolver_preload:
+        # REPLACE_WITH_SYS_ACCOUNT_PUBLIC_KEY: "REPLACE_WITH_SYS_ACCOUNT_JWT"
+        # REPLACE_WITH_SCORE_ACCOUNT_PUBLIC_KEY: "REPLACE_WITH_SCORE_ACCOUNT_JWT"
+
+  container:
+    patch:
+      - op: add
+        path: /volumeMounts/-
+        value:
+          name: operator-jwt
+          mountPath: /etc/nats/operator.jwt
+          subPath: operator.jwt
+          readOnly: true
+
+  podTemplate:
+    patch:
+      - op: add
+        path: /spec/volumes/-
+        value:
+          name: operator-jwt
+          secret:
+            secretName: score-operator-jwt
+
+# Setup NATS websocket ingress
+natsWebsocketIngress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: nats.example.com
+  tls:
+    enabled: false
+    secretName: score-nats-ws-tls
