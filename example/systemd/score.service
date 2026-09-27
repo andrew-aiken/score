@@ -1,0 +1,16 @@
+[Unit]
+Description=Score Server
+After=network-online.target ntp.service
+
+[Service]
+PrivateTmp=true
+Type=simple
+ExecStart=/usr/local/bin/score server --nats-creds /home/nats/.local/share/nats/nsc/keys/creds/score/score/server.creds start --config /home/nats/config.json --log-level info
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s SIGINT $MAINPID
+User=nats
+Group=nats
+KillSignal=SIGUSR2
+
+[Install]
+WantedBy=multi-user.target
