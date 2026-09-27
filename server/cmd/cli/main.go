@@ -169,6 +169,7 @@ func main() {
 							return server.Server(server.ServerArgs{
 								NatsAddress:    cmd.String("nats-address"),
 								NatsCreds:      cmd.String("nats-creds"),
+								NatsPublicURL:  cmd.String("nats-public-url"),
 								ConfigFilePath: cmd.String("config"),
 								LogLevel:       cmd.String("log-level"),
 								DB:             cmd.Bool("db"),
@@ -178,6 +179,11 @@ func main() {
 						Flags: []cli.Flag{
 							&config_flag,
 							&log_level_flag,
+							&cli.StringFlag{
+								Name:    "nats-public-url",
+								Usage:   "Public-facing NATS websocket URL",
+								Sources: cli.EnvVars("NATS_PUBLIC_URL"),
+							},
 							&cli.BoolFlag{
 								Name:  "db",
 								Usage: "Store NATS results messages into a sqlite database for simpler querying",

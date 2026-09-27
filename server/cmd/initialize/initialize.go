@@ -86,6 +86,7 @@ func Initialize(natsAddress string, natsCreds string) error {
 
 	_, err = js.AddConsumer(resultsStream.Name, &nats.ConsumerConfig{
 		Name:          "results-watcher",
+		Durable:       "results-watcher",
 		Description:   "Consumer for reading score results",
 		DeliverPolicy: nats.DeliverAllPolicy,
 		AckPolicy:     nats.AckExplicitPolicy,
@@ -96,7 +97,7 @@ func Initialize(natsAddress string, natsCreds string) error {
 	if err != nil {
 		return err
 	}
-	slog.Debug("Successfully created consumer")
+	slog.Info("Successfully created consumer")
 
 	// Generate random uuid what will server as the admin password
 	password := fmt.Sprint(uuid.New())
