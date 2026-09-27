@@ -34,6 +34,7 @@ type ServerArgs struct {
 	ConfigFilePath string
 	NatsAddress    string
 	NatsCreds      string
+	NatsPublicURL  string
 	DB             bool
 	DBPath         string
 }
@@ -140,6 +141,7 @@ func Server(args ServerArgs) (err error) {
 		NatsKVClient:      natsClient.NatsKV,
 		NatsUsersKVClient: natsClient.NatsUsersKV,
 		CronScheduler:     cronScheduler,
+		NatsPublicURL:     args.NatsPublicURL,
 	}
 
 	authMiddleware := middleware.NewAuthMiddleware(natsAuthService)

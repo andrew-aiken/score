@@ -12,15 +12,27 @@ import {
   isTokenExpired,
   getTeamIdFromJwt,
 } from "./auth";
-import { NATS_URL } from "../config";
+import { getConfig } from "./api";
 
 function redirectToLogin(): void {
   window.location.href = "/login";
 }
 
-const NATS_CONFIG = {
-  servers: NATS_URL,
-};
+// NATS runs as a separate websocket service.
+// If the server wasn't started with a public NATS URL, fall back to it shares a host with the page.
+const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const FALLBACK_NATS_URL = `${wsProtocol}//${window.location.hostname}:8080`;
+
+// Cached across calls (e.g. reconnects) so GET /api/config is only fetched once per page load.
+let natsUrlPromise: Promise<string> | null = null;
+function resolveNatsUrl(): Promise<string> {
+  if (!natsUrlPromise) {
+    natsUrlPromise = getConfig()
+      .then((config) => config.natsUrl || FALLBACK_NATS_URL)
+      .catch(() => FALLBACK_NATS_URL);
+  }
+  return natsUrlPromise;
+}
 
 const sc = StringCodec();
 
@@ -98,10 +110,11 @@ export const useNatsStore = create<NatsState>((set, get) => ({
 
     try {
       const encoder = new TextEncoder();
+      const natsUrl = await resolveNatsUrl();
       connection = await connect({
         authenticator: jwtAuthenticator(creds.jwt, encoder.encode(creds.seed)),
         inboxPrefix: "_INBOX." + teamId + "." + crypto.randomUUID(),
-        servers: NATS_CONFIG.servers,
+        servers: natsUrl,
       });
       connectedJwt = creds.jwt;
 
