@@ -1,0 +1,13 @@
+{
+  "type": "dns",
+  "description": "DNS Check",
+  "frequency": 30,
+  "scoreWeight": 1,
+  "definition": {
+    "server": "8.8.8.8",
+    "domain": "one.one.one.one",
+    "expectedResult": "1.1.1.1",
+    "recordType": "A"
+  },
+  "mutableFields": ["expectedResult"]
+}
