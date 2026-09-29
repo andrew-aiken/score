@@ -250,8 +250,7 @@ func monitorChecks(kvWatcher natsnats.KeyWatcher, cronScheduler gocron.Scheduler
 				slog.Warn("Failed to add check to cron", "error", err)
 				continue
 			}
-
-			slog.Info("Added check to cron", "name", checkName)
+			slog.Info("Added check to cron", "name", checkName, "total", strconv.Itoa(len(cronScheduler.Jobs())))
 
 		case "KeyValuePurgeOp":
 		case "KeyValueDeleteOp":
@@ -259,7 +258,7 @@ func monitorChecks(kvWatcher natsnats.KeyWatcher, cronScheduler gocron.Scheduler
 				continue
 			}
 			cron.RemoveCheckCron(cronScheduler, checkName)
-			slog.Info("Removed check from cron", "name", checkName)
+			slog.Info("Removed check from cron", "name", checkName, "total", strconv.Itoa(len(cronScheduler.Jobs())))
 		default:
 			slog.Warn("Ignoring unknown KV operation", "operation", entry.Operation().String(), "key", entry.Key())
 			continue

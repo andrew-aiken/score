@@ -15,6 +15,9 @@ func AddCheckCron(cron gocron.Scheduler, natsConnection *nats.Conn, checkName st
 		return
 	}
 
+	// Remove any existing job for with this check name so updates replace it instead of duplicating it.
+	cron.RemoveByTags(checkName)
+
 	return cron.NewJob(
 		gocron.DurationJob(time.Duration(checkFrequency)*time.Second),
 		gocron.NewTask(
