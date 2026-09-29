@@ -86,6 +86,13 @@ func TestAddCheckCron(t *testing.T) {
 			t.Error(err)
 		}
 
+		t.Run("ZeroFrequency", func(t *testing.T) {
+			_, err := cron.AddCheckCron(s, nc, checkName, 0)
+			if err.Error() != "cron frequency cannot be zero" {
+				t.Errorf("Got incorrect error message: %v", err.Error())
+			}
+		})
+
 		job, err := cron.AddCheckCron(s, nc, checkName, checkFrequency)
 		if err != nil {
 			t.Error(err)
