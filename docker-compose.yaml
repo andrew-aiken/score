@@ -5,6 +5,7 @@ services:
     ports:
       - "4222:4222"
     volumes:
+      - nats:/data
       - ./nsc/nats.conf:/etc/nats/server.conf:ro
       - ./nsc/score/score.jwt:/etc/nats/operator.jwt:ro
     command: ["-c", "/etc/nats/server.conf"]
@@ -20,11 +21,11 @@ services:
       target: server
     restart: no
     volumes:
+      - shared:/shared
       - ./scripts/startup.sh:/opt/startup.sh:ro
       - ./nsc/config.json:/opt/config.json:ro
       - ./nsc/creds/score/score/server.creds:/server.creds:ro
       - ./example/checks:/checks:ro
-      - shared:/shared
     entrypoint:
       - bash
       - /opt/startup.sh
@@ -66,10 +67,10 @@ services:
       - "443:443"
       - "8080:8080"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/etc/caddy/certs:ro
     networks:
       - proxy
 
@@ -81,8 +82,8 @@ services:
     build:
       context: ./
     volumes:
-      - ./nsc/config.json:/opt/config.json:ro
       - shared:/shared:ro
+      - ./nsc/config.json:/opt/config.json:ro
     environment:
       NATS_ADDRESS: nats://localhost:4222
       NATS_CREDS: /shared/agent.creds
@@ -93,6 +94,7 @@ services:
     network_mode: host
 
 volumes:
+  nats:
   caddy_config:
   caddy_data:
   shared:
