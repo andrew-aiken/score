@@ -13,7 +13,7 @@ caddy/certs/*.crt
 dist/
 
 # Helm dependency archives
-example/kubernetes/score/charts/*.tgz
+examples/kubernetes/score/charts/*.tgz
 
 # Copy of template file
-example/kubernetes/score/values-nats-secrets.yaml
+examples/kubernetes/score/values-nats-secrets.yaml
