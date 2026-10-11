@@ -25,7 +25,7 @@ services:
       - ./scripts/startup.sh:/opt/startup.sh:ro
       - ./nsc/config.json:/opt/config.json:ro
       - ./nsc/creds/score/score/server.creds:/server.creds:ro
-      - ./example/checks:/checks:ro
+      - ./examples/checks:/checks:ro
     entrypoint:
       - bash
       - /opt/startup.sh

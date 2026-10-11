@@ -60,5 +60,5 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - "^example:"
+      - "^examples:"
       - "^test:"
