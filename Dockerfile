@@ -1,5 +1,5 @@
 # Frontend Build
-FROM public.ecr.aws/docker/library/node:26.5.0-alpine3.24 AS frontend
+FROM docker.io/library/node:26.12.1-alpine3.24 AS frontend
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json ./
@@ -14,7 +14,7 @@ RUN npm run build
 
 
 # Server build
-FROM docker.io/library/golang:1.26.5 AS server
+FROM docker.io/library/golang:1.27.3-alpine3.24 AS server
 WORKDIR /go/src/app
 
 COPY server/go.mod server/go.sum ./
