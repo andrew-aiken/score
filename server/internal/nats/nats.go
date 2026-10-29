@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/andrew-aiken/score/internal/score"
@@ -24,6 +25,7 @@ type NatsConnection struct {
 	JetStreamConn      nats.JetStreamContext
 	Retries            uint8
 	natsStreamSub      *nats.Subscription
+	scoreEvents        sync.WaitGroup
 }
 
 func (n *NatsConnection) SetupConnection() error {
@@ -147,7 +149,7 @@ func (n *NatsConnection) SubjectSubscribe(ctx context.Context, settings *setting
 
 	var scoreStream = "events.score.>"
 
-	n.natsStreamSub, err = n.NatsConn.Subscribe(scoreStream, score.HandleScoreEvent(ctx, settings, n.JetStreamConn))
+	n.natsStreamSub, err = n.NatsConn.Subscribe(scoreStream, score.HandleScoreEvent(ctx, settings, n.JetStreamConn, &n.scoreEvents))
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to stream %v", err)
 	}
@@ -174,6 +176,9 @@ func (n *NatsConnection) Close() {
 		}
 		n.natsStreamSub = nil
 	}
+
+	// Let running checks publish their results before the connection closes
+	n.scoreEvents.Wait()
 
 	// Close nats connection
 	if n.NatsConn != nil {

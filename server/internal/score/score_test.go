@@ -82,9 +82,6 @@ func TestHandleScoreEvent(t *testing.T) {
 		t.Fatalf("Failed to connect to JetStream: %v", err)
 	}
 
-	ctx := context.Background()
-	defer ctx.Done()
-
 	noopCheck := settings.Check{
 		Name:          "noop",
 		Type:          "noop",
@@ -119,11 +116,7 @@ func TestHandleScoreEvent(t *testing.T) {
 			},
 		}
 
-		sub, err := nc.Subscribe(scoreSubject, HandleScoreEvent(ctx, &settings, js))
-		if err != nil {
-			t.Fatalf("failed to subscribe to stream %v", err)
-		}
-		t.Cleanup(func() { _ = sub.Unsubscribe() })
+		subscribeScoreEvents(t, nc, js, scoreSubject, &settings)
 
 		err = nc.Publish(scoreSubject, []byte(""))
 		if err != nil {
@@ -170,11 +163,7 @@ func TestHandleScoreEvent(t *testing.T) {
 			},
 		}
 
-		sub, err := nc.Subscribe(scoreSubject, HandleScoreEvent(ctx, &settings, js))
-		if err != nil {
-			t.Fatalf("failed to subscribe to stream %v", err)
-		}
-		t.Cleanup(func() { _ = sub.Unsubscribe() })
+		subscribeScoreEvents(t, nc, js, scoreSubject, &settings)
 
 		err = nc.Publish(scoreSubject, []byte(""))
 		if err != nil {
@@ -202,11 +191,7 @@ func TestHandleScoreEvent(t *testing.T) {
 			},
 		}
 
-		sub, err := nc.Subscribe(scoreSubject, HandleScoreEvent(ctx, &settings, js))
-		if err != nil {
-			t.Fatalf("failed to subscribe to stream %v", err)
-		}
-		t.Cleanup(func() { _ = sub.Unsubscribe() })
+		subscribeScoreEvents(t, nc, js, scoreSubject, &settings)
 
 		err = nc.Publish(scoreSubject, []byte(""))
 		if err != nil {
@@ -238,11 +223,7 @@ func TestHandleScoreEvent(t *testing.T) {
 			},
 		}
 
-		sub, err := nc.Subscribe(scoreSubject, HandleScoreEvent(ctx, &settings, js))
-		if err != nil {
-			t.Fatalf("failed to subscribe to stream %v", err)
-		}
-		t.Cleanup(func() { _ = sub.Unsubscribe() })
+		subscribeScoreEvents(t, nc, js, scoreSubject, &settings)
 
 		err = nc.Publish(scoreSubject, []byte(""))
 		if err != nil {
@@ -277,11 +258,7 @@ func TestHandleScoreEvent(t *testing.T) {
 			},
 		}
 
-		sub, err := nc.Subscribe(scoreSubject, HandleScoreEvent(ctx, &settings, js))
-		if err != nil {
-			t.Fatalf("failed to subscribe to stream %v", err)
-		}
-		t.Cleanup(func() { _ = sub.Unsubscribe() })
+		subscribeScoreEvents(t, nc, js, scoreSubject, &settings)
 
 		err = nc.Publish(scoreSubject, []byte(""))
 		if err != nil {
@@ -294,6 +271,124 @@ func TestHandleScoreEvent(t *testing.T) {
 			t.Errorf("expected \"%s\" to be logged, got:\n%s", expectedError, got)
 		}
 	})
+
+	// A slow check must not delay other checks triggered on the same subscription
+	t.Run("SlowCheckDoesNotBlock", func(t *testing.T) {
+		settings := settings.Settings{
+			Checks: map[string]settings.Check{
+				"slow": {Name: "slow", ScoreWeight: 1, Definition: &sleepDefinition{Millis: 2000}},
+				"noop": noopCheck,
+			},
+			Teams: map[uint16]*settings.TeamState{
+				0: &team,
+			},
+		}
+
+		results, err := nc.SubscribeSync("results.0.>")
+		if err != nil {
+			t.Fatalf("failed to subscribe to results %v", err)
+		}
+		t.Cleanup(func() { _ = results.Unsubscribe() })
+
+		subscribeScoreEvents(t, nc, js, "events.score.>", &settings)
+
+		for _, subject := range []string{"events.score.slow", "events.score.noop"} {
+			if err := nc.Publish(subject, []byte("")); err != nil {
+				t.Fatalf("failed to publish score trigger %v", err)
+			}
+		}
+
+		if got := nextResult(t, results, time.Second); got != "results.0.noop.0" {
+			t.Fatalf("expected the noop result while the slow check runs, got %q", got)
+		}
+		if got := nextResult(t, results, 3*time.Second); got != "results.0.slow.0" {
+			t.Fatalf("expected the slow result, got %q", got)
+		}
+	})
+
+	// Every trigger runs, even while an earlier run of the same check is still in progress
+	t.Run("OverlappingTriggersAllRun", func(t *testing.T) {
+		settings := settings.Settings{
+			Checks: map[string]settings.Check{
+				"overlap": {Name: "overlap", ScoreWeight: 1, Definition: &sleepDefinition{Millis: 500}},
+			},
+			Teams: map[uint16]*settings.TeamState{
+				0: &team,
+			},
+		}
+
+		results, err := nc.SubscribeSync("results.0.overlap.>")
+		if err != nil {
+			t.Fatalf("failed to subscribe to results %v", err)
+		}
+		t.Cleanup(func() { _ = results.Unsubscribe() })
+
+		subscribeScoreEvents(t, nc, js, "events.score.overlap", &settings)
+
+		for range 2 {
+			if err := nc.Publish("events.score.overlap", []byte("")); err != nil {
+				t.Fatalf("failed to publish score trigger %v", err)
+			}
+		}
+
+		for range 2 {
+			if got := nextResult(t, results, 2*time.Second); got != "results.0.overlap.0" {
+				t.Fatalf("expected an overlap result, got %q", got)
+			}
+		}
+	})
+
+	// A check that takes longer than its frequency is flagged
+	t.Run("SlowRunWarns", func(t *testing.T) {
+		logs := captureLogs(t)
+
+		settings := settings.Settings{
+			Checks: map[string]settings.Check{
+				"sleepy": {Name: "sleepy", ScoreWeight: 1, Frequency: 1, Definition: &sleepDefinition{Millis: 1100}},
+			},
+			Teams: map[uint16]*settings.TeamState{
+				0: &team,
+			},
+		}
+
+		subscribeScoreEvents(t, nc, js, "events.score.sleepy", &settings)
+
+		if err := nc.Publish("events.score.sleepy", []byte("")); err != nil {
+			t.Fatalf("failed to publish score trigger %v", err)
+		}
+
+		expected := `"Check run exceeded its frequency" check=sleepy`
+		got := waitForLog(logs, expected, 3*time.Second)
+		if !strings.Contains(got, expected) {
+			t.Errorf("expected \"%s\" to be logged, got:\n%s", expected, got)
+		}
+	})
+}
+
+// subscribeScoreEvents subscribes HandleScoreEvent to subject, cleanup unsubscribes and then waits for running checks
+func subscribeScoreEvents(t *testing.T, nc *nats.Conn, js nats.JetStreamContext, subject string, settings *settings.Settings) {
+	t.Helper()
+
+	var inflight sync.WaitGroup
+	t.Cleanup(inflight.Wait)
+
+	sub, err := nc.Subscribe(subject, HandleScoreEvent(context.Background(), settings, js, &inflight))
+	if err != nil {
+		t.Fatalf("failed to subscribe to stream %v", err)
+	}
+	t.Cleanup(func() { _ = sub.Unsubscribe() })
+}
+
+// nextResult returns the subject of the next published result, failing if none arrives within timeout
+func nextResult(t *testing.T, sub *nats.Subscription, timeout time.Duration) string {
+	t.Helper()
+
+	msg, err := sub.NextMsg(timeout)
+	if err != nil {
+		t.Fatalf("no result published: %v", err)
+	}
+
+	return msg.Subject
 }
 
 func TestCleanTemplateString(t *testing.T) {
@@ -490,5 +585,19 @@ func (foo) Run(ctx context.Context, static checks.StaticConf) checks.Results {
 }
 
 func (foo) Validate() (passed bool, message string) {
+	return true, ""
+}
+
+// sleepDefinition is a check that passes after sleeping for Millis milliseconds
+type sleepDefinition struct {
+	Millis int
+}
+
+func (d sleepDefinition) Run(ctx context.Context, static checks.StaticConf) checks.Results {
+	time.Sleep(time.Duration(d.Millis) * time.Millisecond)
+	return checks.Results{Passed: true, Details: map[string]string{}}
+}
+
+func (sleepDefinition) Validate() (passed bool, message string) {
 	return true, ""
 }
