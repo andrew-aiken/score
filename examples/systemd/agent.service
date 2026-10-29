@@ -1,16 +1,16 @@
 [Unit]
 Description=Scoring Agent
+Wants=network-online.target
 After=network-online.target ntp.service
 
 [Service]
 PrivateTmp=true
 Type=simple
 ExecStart=/usr/local/bin/score agent --nats-creds /home/nats/agent.creds --teams 0 --log-level info
-ExecReload=/bin/kill -s HUP $MAINPID
-ExecStop=/bin/kill -s SIGINT $MAINPID
+Restart=on-failure
+RestartSec=5
 User=nats
 Group=nats
-KillSignal=SIGUSR2
 
 [Install]
 WantedBy=multi-user.target

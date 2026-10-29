@@ -99,12 +99,12 @@ func Run(args RunArgs) error {
 	}()
 
 	// Process KV settings updates
-	agentSettings.MonitorSettings(ctx, natsCon.NatsKVWatchers)
+	err = agentSettings.MonitorSettings(ctx, natsCon.NatsKVWatchers)
 
 	// Stop running checks before the deferred Close waits on them
 	cancel()
 
-	return nil
+	return err
 }
 
 // inboxPrefix generates inbox prefix to connect with

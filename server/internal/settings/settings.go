@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -91,7 +92,8 @@ func mergeWatchers(watchers []nats.KeyWatcher, done <-chan struct{}) (outChan <-
 }
 
 // MonitorSettings loops monitoring the nats KV for settings updates across one or more watchers
-func (s *Settings) MonitorSettings(ctx context.Context, watchers []nats.KeyWatcher) {
+// Returns nil when ctx is cancelled and an error if the watchers stop while still needed
+func (s *Settings) MonitorSettings(ctx context.Context, watchers []nats.KeyWatcher) error {
 	s.mu.Lock()
 	if s.Checks == nil {
 		s.Checks = make(map[string]Check)
@@ -112,15 +114,17 @@ func (s *Settings) MonitorSettings(ctx context.Context, watchers []nats.KeyWatch
 		select {
 		case <-ctx.Done():
 			slog.Warn("Context cancelled, stopping watcher")
-			return
+			return nil
 		case update, chanOpen := <-merged:
 			if !chanOpen {
-				// Every watcher has finished; nothing left to monitor.
-				return
+				if len(watchers) == 0 {
+					return nil
+				}
+				return fmt.Errorf("NATS KV watchers stopped")
 			}
 			if !update.ok {
 				slog.Error("NATS KV watcher failed")
-				return
+				return fmt.Errorf("NATS KV watcher failed")
 			}
 			entry := update.entry
 
