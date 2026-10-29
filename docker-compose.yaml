@@ -27,7 +27,7 @@ services:
       - ./nsc/creds/score/score/server.creds:/server.creds:ro
       - ./examples/checks:/checks:ro
     entrypoint:
-      - bash
+      - sh
       - /opt/startup.sh
     networks:
       - internal
