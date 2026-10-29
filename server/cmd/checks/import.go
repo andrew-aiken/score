@@ -41,7 +41,7 @@ func Import(natsAddress string, natsCreds string, directory string) error {
 		return err
 	}
 
-	err = loadKV(directory, checkFiles, natsClient)
+	err = loadKV(directory, checkFiles, &natsClient)
 
 	return err
 }
@@ -74,7 +74,7 @@ func readDirectory(directoryPath string) ([]string, error) {
 	return validFiles, nil
 }
 
-func loadKV(directory string, checkFiles []string, natsClient nats.NatsConnection) error {
+func loadKV(directory string, checkFiles []string, natsClient *nats.NatsConnection) error {
 	for _, file := range checkFiles {
 		checkName := fmt.Sprintf("check.%s", strings.TrimSuffix(file, ".json"))
 

@@ -99,15 +99,19 @@ func Run(args RunArgs) error {
 	}()
 
 	// Process KV settings updates
-	agentSettings.MonitorSettings(ctx, natsCon.NatsKVWatchers)
+	err = agentSettings.MonitorSettings(ctx, natsCon.NatsKVWatchers)
 
-	return nil
+	// Stop running checks before the deferred Close waits on them
+	cancel()
+
+	return err
 }
 
 // inboxPrefix generates inbox prefix to connect with
+// Agents use their own "_AGENT" namespace prefix
 func inboxPrefix(teamNumbers []uint16) string {
 	if len(teamNumbers) == 1 {
-		return fmt.Sprintf("_INBOX.%d", teamNumbers[0])
+		return fmt.Sprintf("_AGENT.%d", teamNumbers[0])
 	}
-	return "_INBOX.0"
+	return "_AGENT.0"
 }

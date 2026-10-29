@@ -98,16 +98,18 @@ func runMonitor(t *testing.T, s *Settings, watchers []nats.KeyWatcher) (stop fun
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
+	done := make(chan error, 1)
 	go func() {
-		defer close(done)
-		s.MonitorSettings(ctx, watchers)
+		done <- s.MonitorSettings(ctx, watchers)
 	}()
 
 	return func() {
 		cancel()
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				t.Errorf("MonitorSettings returned an error after cancellation: %v", err)
+			}
 		case <-time.After(2 * time.Second):
 			t.Fatal("MonitorSettings did not stop after context cancellation")
 		}
@@ -507,16 +509,18 @@ func TestMonitorSettingsStopsOnContextCancellation(t *testing.T) {
 	s := &Settings{Checks: map[string]Check{}}
 	ctx, cancel := context.WithCancel(context.Background())
 
-	done := make(chan struct{})
+	done := make(chan error, 1)
 	go func() {
-		defer close(done)
-		s.MonitorSettings(ctx, []nats.KeyWatcher{w})
+		done <- s.MonitorSettings(ctx, []nats.KeyWatcher{w})
 	}()
 
 	cancel()
 
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Errorf("expected nil error after cancellation, got %v", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("MonitorSettings did not stop after context cancellation")
 	}
@@ -528,10 +532,9 @@ func TestMonitorSettingsStopsWhenWatcherChannelCloses(t *testing.T) {
 
 	s := &Settings{Checks: map[string]Check{}}
 
-	done := make(chan struct{})
+	done := make(chan error, 1)
 	go func() {
-		defer close(done)
-		s.MonitorSettings(context.Background(), []nats.KeyWatcher{w})
+		done <- s.MonitorSettings(context.Background(), []nats.KeyWatcher{w})
 	}()
 
 	if err := w.Stop(); err != nil {
@@ -539,7 +542,10 @@ func TestMonitorSettingsStopsWhenWatcherChannelCloses(t *testing.T) {
 	}
 
 	select {
-	case <-done:
+	case err := <-done:
+		if err == nil {
+			t.Error("expected an error when the watcher stops while still needed, got nil")
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("MonitorSettings did not stop after its only watcher's channel closed")
 	}
@@ -548,14 +554,16 @@ func TestMonitorSettingsStopsWhenWatcherChannelCloses(t *testing.T) {
 func TestMonitorSettingsNoWatchersReturnsImmediately(t *testing.T) {
 	s := &Settings{Checks: map[string]Check{}}
 
-	done := make(chan struct{})
+	done := make(chan error, 1)
 	go func() {
-		defer close(done)
-		s.MonitorSettings(context.Background(), nil)
+		done <- s.MonitorSettings(context.Background(), nil)
 	}()
 
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Errorf("expected nil error with no watchers, got %v", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("MonitorSettings with no watchers did not return immediately")
 	}

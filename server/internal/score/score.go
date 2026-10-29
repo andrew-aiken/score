@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/andrew-aiken/score/internal/settings"
 
@@ -17,37 +18,53 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// HandleScoreEvent returns a handler for nats that triggers whenever a scorsing event is triggered
-func HandleScoreEvent(ctx context.Context, settings *settings.Settings, js nats.JetStreamContext) nats.MsgHandler {
+// HandleScoreEvent returns a handler for nats that triggers whenever a scoring event is triggered
+// Each event runs in its own goroutine so a slow check never delays other checks
+func HandleScoreEvent(ctx context.Context, settings *settings.Settings, js nats.JetStreamContext, inflight *sync.WaitGroup) nats.MsgHandler {
 	return func(msg *nats.Msg) {
 		checkName := strings.TrimPrefix(msg.Subject, "events.score.")
 
-		value, ok := settings.GetCheck(checkName)
-		if !ok {
-			slog.Error(fmt.Sprintf("Check %s not found", checkName))
-			return
-		}
+		inflight.Go(func() {
+			runScoreEvent(ctx, settings, js, checkName)
+		})
+	}
+}
 
-		// Verify the definition implements Checker before fanning out
-		if _, ok := value.Definition.(checks.Checker); !ok {
-			slog.Error(fmt.Sprintf("Check %s definition does not implement Checker interface", checkName))
-			return
-		}
+// runScoreEvent runs a check for every team and waits for all of them to finish
+func runScoreEvent(ctx context.Context, settings *settings.Settings, js nats.JetStreamContext, checkName string) {
+	value, ok := settings.GetCheck(checkName)
+	if !ok {
+		slog.Error(fmt.Sprintf("Check %s not found", checkName))
+		return
+	}
 
-		// Marshal the definition once; each goroutine unmarshals into its own struct.
-		defBytes, err := json.Marshal(value.Definition)
-		if err != nil {
-			slog.Error(fmt.Sprintf("Failed to marshal definition for check %s", checkName), "error", err.Error())
-			return
-		}
+	// Verify the definition implements Checker before fanning out
+	if _, ok := value.Definition.(checks.Checker); !ok {
+		slog.Error(fmt.Sprintf("Check %s definition does not implement Checker interface", checkName))
+		return
+	}
 
-		var wg sync.WaitGroup
-		for teamNum, teamState := range settings.Teams {
-			wg.Go(func() {
-				runTeamCheck(ctx, teamNum, teamState, checkName, value, defBytes, js)
-			})
-		}
-		wg.Wait()
+	// Marshal the definition once; each goroutine unmarshals into its own struct.
+	defBytes, err := json.Marshal(value.Definition)
+	if err != nil {
+		slog.Error(fmt.Sprintf("Failed to marshal definition for check %s", checkName), "error", err.Error())
+		return
+	}
+
+	start := time.Now()
+
+	var wg sync.WaitGroup
+	for teamNum, teamState := range settings.Teams {
+		wg.Go(func() {
+			runTeamCheck(ctx, teamNum, teamState, checkName, value, defBytes, js)
+		})
+	}
+	wg.Wait()
+
+	// Overlapping runs are allowed, so flag checks that can't keep up with their schedule
+	frequency := time.Duration(value.Frequency) * time.Second
+	if elapsed := time.Since(start); frequency > 0 && elapsed > frequency {
+		slog.Warn("Check run exceeded its frequency", "check", checkName, "duration", elapsed, "frequency", frequency)
 	}
 }
 
