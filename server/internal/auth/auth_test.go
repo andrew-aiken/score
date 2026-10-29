@@ -2,6 +2,7 @@ package auth
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +59,9 @@ func TestGenerateCredentials_Admin(t *testing.T) {
 	if !slices.Contains(claims.PubAllow, ">") {
 		t.Errorf("expected admin PubAllow to contain \">\", got %v", claims.PubAllow)
 	}
+	if len(claims.PubDeny) != 0 {
+		t.Errorf("expected admin PubDeny to be empty, got %v", claims.PubDeny)
+	}
 	if !slices.Contains(claims.SubAllow, ">") {
 		t.Errorf("expected admin SubAllow to contain \">\", got %v", claims.SubAllow)
 	}
@@ -75,22 +79,23 @@ func TestGenerateCredentials_Observer(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"_INBOX.>",
+		"_INBOX.observer.>",
 		"$JS.API.INFO",
 		"$JS.API.STREAM.NAMES",
 		"$JS.API.STREAM.INFO.results",
 		"$JS.API.CONSUMER.CREATE.results.*.results.>",
 		"$JS.API.CONSUMER.MSG.NEXT.results.*",
 		"$JS.API.CONSUMER.DELETE.results.*",
-		"$JS.ACK.results.>",
 	} {
 		if !slices.Contains(claims.PubAllow, want) {
 			t.Errorf("expected observer PubAllow to contain %q, got %v", want, claims.PubAllow)
 		}
 	}
-	if len(claims.PubAllow) != 8 {
-		t.Errorf("expected observer PubAllow to have exactly 8 entries (no extra publish rights), got %v", claims.PubAllow)
+	if len(claims.PubAllow) != 7 {
+		t.Errorf("expected observer PubAllow to have exactly 7 entries (no extra publish rights), got %v", claims.PubAllow)
 	}
+
+	assertSinkConsumerDenied(t, claims)
 }
 
 func TestGenerateCredentials_Team(t *testing.T) {
@@ -105,6 +110,36 @@ func TestGenerateCredentials_Team(t *testing.T) {
 	}
 	if slices.Contains(claims.PubAllow, ">") {
 		t.Errorf("expected team PubAllow to NOT contain \">\", got %v", claims.PubAllow)
+	}
+	if !slices.Contains(claims.PubAllow, "_INBOX.3.>") {
+		t.Errorf("expected team PubAllow to contain its own inbox \"_INBOX.3.>\", got %v", claims.PubAllow)
+	}
+	if slices.Contains(claims.PubAllow, "_INBOX.>") {
+		t.Errorf("expected team PubAllow to NOT contain every inbox \"_INBOX.>\", got %v", claims.PubAllow)
+	}
+
+	assertSinkConsumerDenied(t, claims)
+}
+
+// assertSinkConsumerDenied checks non-admin claims can't reach the server's sink consumer and hold no ack rights
+func assertSinkConsumerDenied(t *testing.T, claims *UserClaims) {
+	t.Helper()
+
+	for _, want := range []string{
+		"$JS.API.CONSUMER.MSG.NEXT.results.results-watcher",
+		"$JS.API.CONSUMER.DELETE.results.results-watcher",
+		"$JS.API.CONSUMER.CREATE.results.results-watcher",
+		"$JS.API.CONSUMER.CREATE.results.results-watcher.>",
+	} {
+		if !slices.Contains(claims.PubDeny, want) {
+			t.Errorf("expected PubDeny to contain %q, got %v", want, claims.PubDeny)
+		}
+	}
+
+	for _, perm := range claims.PubAllow {
+		if strings.HasPrefix(perm, "$JS.ACK") {
+			t.Errorf("expected PubAllow to have no $JS.ACK subjects, got %q", perm)
+		}
 	}
 }
 

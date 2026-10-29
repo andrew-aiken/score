@@ -8,6 +8,10 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+// resultsSinkConsumer is the server's durable consumer on the results stream
+// (created in cmd/initialize/initialize.go, consumed by internal/sink/consumer.go)
+const resultsSinkConsumer = "results-watcher"
+
 // Credentials holds the NATS JWT and seed for authentication
 type Credentials struct {
 	JWT  string `json:"jwt"`
@@ -19,6 +23,7 @@ type UserClaims struct {
 	UserID        string
 	TeamID        string
 	PubAllow      []string
+	PubDeny       []string
 	SubAllow      []string
 	ExpiresAt     time.Time
 	IssuedAt      time.Time
@@ -114,14 +119,19 @@ func (s *NATSAuthService) applyPermissions(userClaim *jwt.UserClaims, team strin
 		teamSubject = "results.>"
 	}
 
-	userClaim.Pub.Allow.Add("_INBOX.>")
+	userClaim.Pub.Allow.Add("_INBOX." + team + ".>")
 	userClaim.Pub.Allow.Add("$JS.API.INFO")
 	userClaim.Pub.Allow.Add("$JS.API.STREAM.NAMES")
 	userClaim.Pub.Allow.Add("$JS.API.STREAM.INFO.results")
 	userClaim.Pub.Allow.Add("$JS.API.CONSUMER.CREATE.results.*." + teamSubject)
 	userClaim.Pub.Allow.Add("$JS.API.CONSUMER.MSG.NEXT.results.*")
 	userClaim.Pub.Allow.Add("$JS.API.CONSUMER.DELETE.results.*")
-	userClaim.Pub.Allow.Add("$JS.ACK.results.>")
+
+	// The consumer wildcards above would otherwise match the server's sink consumer
+	userClaim.Pub.Deny.Add("$JS.API.CONSUMER.MSG.NEXT.results." + resultsSinkConsumer)
+	userClaim.Pub.Deny.Add("$JS.API.CONSUMER.DELETE.results." + resultsSinkConsumer)
+	userClaim.Pub.Deny.Add("$JS.API.CONSUMER.CREATE.results." + resultsSinkConsumer)
+	userClaim.Pub.Deny.Add("$JS.API.CONSUMER.CREATE.results." + resultsSinkConsumer + ".>")
 
 	userClaim.Sub.Allow.Add(teamSubject)
 	userClaim.Sub.Allow.Add("_INBOX." + team + ".>")
@@ -161,9 +171,12 @@ func (s *NATSAuthService) VerifyJWT(jwtString string) (*UserClaims, error) {
 	}
 
 	// Extract permissions
-	var pubAllow, subAllow []string
+	var pubAllow, pubDeny, subAllow []string
 	for _, perm := range claim.Pub.Allow {
 		pubAllow = append(pubAllow, perm)
+	}
+	for _, perm := range claim.Pub.Deny {
+		pubDeny = append(pubDeny, perm)
 	}
 	for _, perm := range claim.Sub.Allow {
 		subAllow = append(subAllow, perm)
@@ -173,6 +186,7 @@ func (s *NATSAuthService) VerifyJWT(jwtString string) (*UserClaims, error) {
 		UserID:        userID,
 		TeamID:        claim.Name,
 		PubAllow:      pubAllow,
+		PubDeny:       pubDeny,
 		SubAllow:      subAllow,
 		ExpiresAt:     time.Unix(claim.Expires, 0),
 		IssuedAt:      time.Unix(claim.IssuedAt, 0),

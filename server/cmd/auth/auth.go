@@ -50,21 +50,41 @@ func Auth(args CliParameters) error {
 }
 
 func createAgentCredentials(conf config.Config, streamIndex string) error {
-	// Validate the account seed
-	_, err := nkeys.FromSeed([]byte(conf.AccountSigningSeed))
+	signedJWT, userSeed, err := AgentCredentials(conf, streamIndex)
 	if err != nil {
-		return fmt.Errorf("invalid account seed: %w", err)
+		return err
+	}
+
+	fmt.Printf(`
+-----BEGIN NATS USER JWT-----
+%s
+------END NATS USER JWT------
+
+-----BEGIN USER NKEY SEED-----
+%s
+------END USER NKEY SEED------
+`, signedJWT, userSeed)
+
+	return nil
+}
+
+// AgentCredentials creates a signed agent JWT and user seed scoped to a team number, or "*" for a standalone agent
+func AgentCredentials(conf config.Config, streamIndex string) (signedJWT string, userSeed string, err error) {
+	// Validate the account seed
+	_, err = nkeys.FromSeed([]byte(conf.AccountSigningSeed))
+	if err != nil {
+		return "", "", fmt.Errorf("invalid account seed: %w", err)
 	}
 
 	// Create a new user keypair
 	userKP, err := nkeys.CreateUser()
 	if err != nil {
-		return fmt.Errorf("failed to create user keypair: %w", err)
+		return "", "", fmt.Errorf("failed to create user keypair: %w", err)
 	}
 
 	userPub, err := userKP.PublicKey()
 	if err != nil {
-		return fmt.Errorf("failed to get user public key: %w", err)
+		return "", "", fmt.Errorf("failed to get user public key: %w", err)
 	}
 
 	// Create claim permissions
@@ -99,34 +119,24 @@ func createAgentCredentials(conf config.Config, streamIndex string) error {
 	userClaim.Pub.Allow.Add("$JS.API.CONSUMER.DELETE.KV_settings.*")
 
 	userClaim.Sub.Allow.Add("events.score.>")
-	userClaim.Sub.Allow.Add("_INBOX." + streamIndex + ".>")
+	userClaim.Sub.Allow.Add("_AGENT." + streamIndex + ".>")
 
 	// Sign with account key
 	accountKP, err := nkeys.FromSeed([]byte(conf.AccountSigningSeed))
 	if err != nil {
-		return fmt.Errorf("failed to create account keypair: %w", err)
+		return "", "", fmt.Errorf("failed to create account keypair: %w", err)
 	}
 
-	signedJWT, err := userClaim.Encode(accountKP)
+	signedJWT, err = userClaim.Encode(accountKP)
 	if err != nil {
-		return fmt.Errorf("failed to encode user JWT: %w", err)
+		return "", "", fmt.Errorf("failed to encode user JWT: %w", err)
 	}
 
 	// Get user seed
-	userSeed, err := userKP.Seed()
+	seed, err := userKP.Seed()
 	if err != nil {
-		return fmt.Errorf("failed to get user seed: %w", err)
+		return "", "", fmt.Errorf("failed to get user seed: %w", err)
 	}
 
-	fmt.Printf(`
------BEGIN NATS USER JWT-----
-%s
-------END NATS USER JWT------
-
------BEGIN USER NKEY SEED-----
-%s
-------END USER NKEY SEED------
-`, signedJWT, string(userSeed))
-
-	return nil
+	return signedJWT, string(seed), nil
 }
